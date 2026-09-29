@@ -9,6 +9,16 @@ without a human watching a dashboard.
 **Live demo (client-side simulator, no backend needed):** GitHub Pages, `docs/index.html`
 **Full stack:** FastAPI + Redis (exact cache) + Qdrant (semantic cache) + Prometheus + Grafana
 
+## Designed and Developed by 
+# **NIKHIL CHARY SRIRAMOJU**
+BTech CSE (Final Year)
+
+- GitHub: [Nikhil-creat](https://github.com/Nikhil-creat)
+- LinkedIn: [nikhil-chary-sriramoju](https://in.linkedin.com/in/nikhil-chary-sriramoju-95041b38a)
+- Email: sriramojunikhil66@gmail.com
+- Instagram: [@nikhil__sriramoju](https://www.instagram.com/nikhil__sriramoju)
+- Facebook: [Profile](https://www.facebook.com/profile.php?id=100079201124141)
+
 ## Why a cache isn't enough on its own
 
 A plain vector-similarity cache is dangerous: "Is 15% too much interest?" and
