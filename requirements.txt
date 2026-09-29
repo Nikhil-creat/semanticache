@@ -1,0 +1,7 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+httpx>=0.27
+numpy>=1.26
+prometheus-client>=0.20
+redis>=5.0
+qdrant-client>=1.9

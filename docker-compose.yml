@@ -1,0 +1,30 @@
+services:
+  api:
+    build: .
+    env_file: .env
+    environment:
+      VECTOR_BACKEND: qdrant
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+    ports: ["8000:8000"]
+    depends_on: [redis, qdrant]
+  redis:
+    image: redis:7-alpine
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes: [qdrant_data:/qdrant/storage]
+  prometheus:
+    image: prom/prometheus:latest
+    volumes: ["./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+  grafana:
+    image: grafana/grafana:latest
+    environment: {GF_AUTH_ANONYMOUS_ENABLED: "true", GF_AUTH_ANONYMOUS_ORG_ROLE: Admin}
+    volumes:
+      - ./monitoring/grafana/datasource.yml:/etc/grafana/provisioning/datasources/ds.yml:ro
+      - ./monitoring/grafana/provider.yml:/etc/grafana/provisioning/dashboards/p.yml:ro
+      - ./monitoring/grafana/dashboard.json:/var/lib/grafana/dashboards/semanticache.json:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+volumes:
+  qdrant_data:

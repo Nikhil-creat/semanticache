@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SemantiCache: ask twice, pay once</title>
+<meta name="description" content="A semantic caching proxy for LLM APIs with self-tuning agents. Try the live simulator.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e9f0f4;--panel:#fff;--ink:#10283a;--mute:#54697a;--line:#c9d6de;--acc:#2447f5;--hit:#0b8f63;--miss:#c2413b;--ver:#a86a00}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.6 "Instrument Sans",system-ui,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+main{max-width:860px;margin:0 auto;padding:28px 20px 64px}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:36px}
+.brand{font:800 1.2rem "Bricolage Grotesque",sans-serif;letter-spacing:-.01em}
+a{color:var(--acc)}
+h1{font:800 clamp(2.6rem,9vw,4.6rem)/1 "Bricolage Grotesque",sans-serif;letter-spacing:-.03em;margin:0 0 14px}
+h2{font:800 1.5rem "Bricolage Grotesque",sans-serif;margin:48px 0 12px}
+.lede{max-width:56ch;color:var(--mute);font-size:1.1rem;margin:0 0 28px}
+.demo{background:var(--panel);border:2px solid var(--ink);border-radius:6px;padding:18px}
+.row{display:flex;gap:8px}
+input[type=text]{flex:1;min-width:0;font:inherit;padding:12px 14px;border:1.5px solid var(--line);border-radius:4px;background:#fff;color:var(--ink)}
+button{font:600 1rem "Instrument Sans",sans-serif;padding:12px 18px;border:0;border-radius:4px;background:var(--acc);color:#fff;cursor:pointer}
+button:disabled{opacity:.5;cursor:wait}
+:focus-visible{outline:3px solid #ffb400;outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 16px}
+.chips button{background:var(--bg);color:var(--ink);font-weight:400;font-size:.88rem;padding:6px 10px;border:1px solid var(--line)}
+#out{min-height:150px;border-top:1px solid var(--line);padding-top:14px}
+.badge{display:inline-block;font:800 1.05rem "Bricolage Grotesque",sans-serif;padding:2px 10px;border-radius:3px;color:#fff}
+.HIT,.EXACT{background:var(--hit)}.VERIFIED{background:var(--ver)}.MISS{background:var(--miss)}
+.meter{position:relative;height:10px;background:var(--bg);border-radius:5px;margin:14px 0 6px}
+.meter i{position:absolute;left:0;top:0;bottom:0;background:var(--ink);border-radius:5px;transition:width .35s}
+.meter b{position:absolute;top:-5px;bottom:-5px;width:3px;background:var(--acc)}
+.small{font-size:.86rem;color:var(--mute)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.stats div{background:var(--bg);border-radius:4px;padding:8px 12px}
+.stats strong{display:block;font:800 1.5rem "Bricolage Grotesque",sans-serif}
+label{display:block;font-weight:600;margin-top:6px}
+input[type=range]{width:100%;accent-color:var(--acc)}
+#journal{list-style:none;margin:8px 0 0;padding:0;font:.85rem ui-monospace,Menlo,monospace;max-height:150px;overflow:auto}
+#journal li{padding:4px 0;border-bottom:1px dashed var(--line)}
+dl{margin:0}dt{font-weight:600;margin-top:14px}dd{margin:2px 0 0;color:var(--mute);max-width:64ch}
+pre{background:var(--ink);color:#e6f0f7;padding:16px;border-radius:6px;overflow-x:auto;font-size:.88rem}
+@media(max-width:520px){.row{flex-direction:column}.stats strong{font-size:1.2rem}}
+@media(prefers-reduced-motion:reduce){.meter i{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<header><span class="brand">SemantiCache</span><a href="https://github.com/YOUR-USERNAME/semanticache">Source on GitHub</a></header>
+
+<h1>Ask twice.<br>Pay once.</h1>
+<p class="lede">A drop-in proxy for LLM APIs. It answers repeat questions from cache, even when they are worded differently, and its agents tune themselves so wrong answers stay out. Try it below. Everything here runs in your browser.</p>
+
+<section class="demo" aria-label="Live simulator">
+  <form class="row" id="f"><input id="q" type="text" aria-label="Your prompt" placeholder="Ask something, then ask it another way" autocomplete="off"><button id="go">Ask</button></form>
+  <div class="chips" id="chips"></div>
+  <div id="out" aria-live="polite"><p class="small">Three answers are already cached: passwords, refunds and shipping. Try a reworded question, then change a number or add a "not" to see the safety guard act.</p></div>
+  <div class="stats"><div><strong id="sReq">0</strong>requests</div><div><strong id="sRate">0%</strong>hit rate</div><div><strong id="sUsd">$0.00</strong>saved</div></div>
+  <label for="thr">Similarity threshold: <span id="thrV"></span></label>
+  <input id="thr" type="range" min="0.80" max="0.97" step="0.01">
+  <p class="small">The Governor agent moves this on its own when it sees evidence. Its journal:</p>
+  <ul id="journal"></ul>
+</section>
+
+<h2>What is inside</h2>
+<dl>
+<dt>Two-tier cache</dt><dd>Exact matches return in microseconds from Redis. Everything else goes through embeddings and a Qdrant vector search.</dd>
+<dt>Safety guard</dt><dd>Two prompts can be near-identical to an embedding and still ask opposite things: "15% of 200" versus "25% of 200", "safe" versus "not safe". Numbers and negations must agree before any answer is reused.</dd>
+<dt>Verifier agent</dt><dd>Matches just under the threshold are checked by a cheap model that decides whether both questions want the same answer. If it fails, the request goes to the model.</dd>
+<dt>Governor agent</dt><dd>Watches guard rejections and verifier approvals, then tightens or loosens the threshold one step at a time, inside hard bounds, and keeps a readable journal.</dd>
+<dt>Cost-aware router</dt><dd>Model "auto" sends simple prompts to the cheap tier and hard ones to the strong tier.</dd>
+<dt>Privacy and tenants</dt><dd>Emails, card numbers and phone numbers are redacted before embedding or storage. Each tenant and system prompt gets its own cache namespace.</dd>
+<dt>Observability</dt><dd>Prometheus metrics and a Grafana dashboard for hit rate, latency by status, tokens and dollars saved.</dd>
+<dt>Agent tools</dt><dd>/agent/tools publishes function-calling schemas so other AI agents can read stats, invalidate entries or tune the cache.</dd>
+</dl>
+
+<h2>Run it</h2>
+<pre>git clone https://github.com/YOUR-USERNAME/semanticache
+cd semanticache
+cp .env.example .env
+docker compose up --build      # API :8000, Grafana :3000
+python scripts/simulate.py     # watch hits appear</pre>
+<p class="small">No API key needed: without one, it uses a mock model and a local embedder. Add OPENAI_API_KEY to go live. Point any OpenAI SDK at http://localhost:8000/v1.</p>
+</main>
+
+<script>
+const STOP=new Set("a an the is are was were be to of in on for and or i you me my it its can could would should please tell explain what how do does did with about".split());
+const D=512,tok=t=>(t.toLowerCase().match(/[a-z0-9]+/g)||[]).filter(w=>!STOP.has(w));
+const fnv=s=>{let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0};
+function embed(t){const v=new Float32Array(D),w=tok(t),add=(f,x)=>{const h=fnv(f);v[h%D]+=(h>>>20)&1?x:-x};
+ w.forEach(a=>{add(a,1);const p="<"+a+">";for(let i=0;i<p.length-2;i++)add(p.slice(i,i+3),.3)});
+ for(let i=0;i<w.length-1;i++)add(w[i]+"_"+w[i+1],.5);
+ const n=Math.hypot(...v)||1;return v.map(x=>x/n)}
+const dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
+const nums=t=>(t.match(/\d+(\.\d+)?/g)||[]).sort().join(","),neg=t=>/\b(not|no|never|without|dont|don't|cannot|can't|isn't|won't)\b/i.test(t);
+const guard=(a,b)=>nums(a)===nums(b)&&neg(a)===neg(b);
+const redact=t=>t.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g,"<EMAIL>").replace(/\b(?:\d[ -]?){13,16}\b/g,"<CARD>");
+const jac=(a,b)=>{const A=new Set(tok(a)),B=new Set(tok(b));let i=0;A.forEach(x=>B.has(x)&&i++);return i/Math.max(1,A.size+B.size-i)};
+
+const cache=[["How do I reset my password?","Open Settings, choose Security, then Reset password. We email you a link."],
+ ["What is your refund policy?","Refunds are available within 30 days of purchase, no questions asked."],
+ ["How long does shipping take?","Standard shipping takes 3 to 5 business days."]].map(([p,a])=>({p,a,v:embed(p),tokens:60}));
+const st={n:0,hit:0,tok:0};let thr=.88,win=[];
+const $=id=>document.getElementById(id),jr=$("journal");
+const log=m=>{const li=document.createElement("li");li.textContent=new Date().toLocaleTimeString([], {hour12:false})+"  "+m;jr.prepend(li)};
+function record(kind){win.push(kind);if(win.length<5)return;
+ const c=k=>win.filter(x=>x===k).length,rej=c("rej"),ok=c("ok"),no=c("no"),old=thr;let why="holding";
+ if(rej>ok&&rej>=2){thr=Math.min(.97,thr+.01);why="tighten: "+rej+" unsafe matches above threshold"}
+ else if(ok>rej&&ok>=2&&no<=ok){thr=Math.max(.80,thr-.01);why="loosen: verifier approved "+ok+" near-misses"}
+ log(old.toFixed(2)+" to "+thr.toFixed(2)+" ("+why+")");win=[];sync()}
+function sync(){$("thr").value=thr;$("thrV").textContent=thr.toFixed(2)}
+$("thr").oninput=e=>{thr=+e.target.value;sync();log("you set "+thr.toFixed(2))};
+function stats(){$("sReq").textContent=st.n;$("sRate").textContent=st.n?Math.round(st.hit/st.n*100)+"%":"0%";$("sUsd").textContent="$"+(st.tok/1000*.002).toFixed(4)}
+function show(cls,label,sim,ms,src,match,ans){
+ $("out").innerHTML=`<span class="badge ${cls}">${label}</span> <span class="small">${ms} ms ${src}</span>
+ <div class="meter" role="img" aria-label="similarity ${sim.toFixed(2)}, threshold ${thr.toFixed(2)}"><i style="width:${Math.max(0,sim)*100}%"></i><b style="left:${thr*100}%"></b></div>
+ <p class="small">Similarity ${sim.toFixed(2)}. Blue marker is the threshold.${match?` Closest cached prompt: <em></em>`:""}</p><p class="ans"></p>`;
+ if(match)$("out").querySelector("em").textContent=match;$("out").querySelector(".ans").textContent=ans}
+$("f").onsubmit=async e=>{e.preventDefault();const raw=$("q").value.trim();if(!raw)return;
+ const q=redact(raw),v=embed(q);let best=null,s=0;cache.forEach(c=>{const d=dot(c.v,v);if(d>s){s=d;best=c}});
+ let status="MISS";st.n++;
+ if(best){const safe=guard(q,best.p);
+  if(s>=thr){if(safe)status="HIT";else{record("rej");log("guard blocked a match ("+s.toFixed(2)+"): numbers or negation differ")}}
+  else if(s>=thr-.06&&safe){if(jac(q,best.p)>=.6){status="VERIFIED";record("ok")}else record("no")}}
+ if(status!=="MISS"){st.hit++;st.tok+=best.tokens;show(status,status,s,(3+Math.random()*10).toFixed(1),"from cache",best.p,best.a)}
+ else{$("go").disabled=true;$("out").innerHTML='<p class="small">Cache miss. Calling the model (simulated 900 ms)…</p>';
+  await new Promise(r=>setTimeout(r,900));const a="Simulated model answer to: "+q;
+  cache.push({p:q,a,v,tokens:60});show("MISS","MISS",s,900,"from model (simulated)",best&&best.p,a);$("go").disabled=false}
+ stats()};
+["How can I reset my password","refund policy please","What is 15% of 200?","What is 25% of 200?","Is this safe?","Is this not safe?"].forEach(t=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.onclick=()=>{$("q").value=t;$("f").requestSubmit()};$("chips").append(b)});
+sync();log("Governor started at 0.88");
+</script>
+</body>
+</html>
